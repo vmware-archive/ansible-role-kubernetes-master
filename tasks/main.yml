@@ -1,0 +1,56 @@
+---
+- name: test for kubernetes installed
+  command: rpm -q kubernetes
+  register: kubernetes_installed
+  ignore_errors: yes
+
+- name: install kubernetes
+  yum:  name={{ kubernetes_package }} state=present
+  when: kubernetes_installed.rc == 1
+
+- name: allow cert creation
+  file: group=kube owner=kube path=/var/run/kubernetes/ state=directory recurse=yes
+
+- name: Set up configs
+  template:
+    src: "{{ item }}.j2"
+    dest: "{{ kube_config_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - apiserver
+    - config
+  notify:
+    - restart kube-apiserver
+    - restart kube-controller-manager
+    - restart kube-scheduler
+
+- name: test for flanel installed
+  command: rpm -q flannel
+  register: flannel_installed
+  ignore_errors: yes
+
+- name: install flannel
+  yum:  name={{ flannel_package }} state=present
+  when: flannel_installed.rc == 1
+
+- name: Set up services
+  template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - flannel.service
+    - etcd.service
+
+- name: start services
+  service: name={{ item }} enabled=yes state=started
+  with_items:
+    - kube-apiserver
+    - kube-controller-manager
+    - kube-scheduler
+    - etcd
+    - flannel

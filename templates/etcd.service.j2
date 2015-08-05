@@ -1,0 +1,11 @@
+[Unit]
+Description=Flannel network fabric
+
+[Service]
+EnvironmentFile=/etc/environment
+ExecStart=/usr/bin/etcd --advertise-client-urls http://{{ master_address }}:2379,http://{{ master_address }}:4001  --listen-client-urls http://0.0.0.0:2379,http://0.0.0.0:4001  --initial-advertise-peer-urls http://{{ master_address }}:2380  --listen-peer-urls http://0.0.0.0:2380  --initial-cluster-token etcd-cluster-1  -initial-cluster default=http://{{ master_address }}:2380  -initial-cluster-state new
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

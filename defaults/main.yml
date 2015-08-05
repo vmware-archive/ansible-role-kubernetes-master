@@ -1,0 +1,4 @@
+# use 512MB, type string, or 0 for unlimited
+memory_limit: 0MB
+kubernetes_package: kubernetes
+flannel_package: flannel

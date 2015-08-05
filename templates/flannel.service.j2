@@ -1,0 +1,13 @@
+[Unit]
+Description=Flannel network fabric
+
+[Service]
+EnvironmentFile=/etc/environment
+ExecStartPre=-/bin/bash -c "until /usr/bin/etcdctl --peers=http://{{ master_address }}:4001 set /coreos.com/network/config '{\"Network\": \"{{ portal_net }}\"}'; do echo \"waiting for etcd to become available...\"; sleep 5; done"
+ExecStart=/usr/bin/flanneld --v=5 --iface={{ hostvars[inventory_hostname]['ansible_eth0']['ipv4']['address'] }} --etcd-endpoints=http://{{ master_address }}:4001
+ExecStartPost=-/bin/bash -c "until [ -e /run/flannel/subnet.env ]; do echo \"waiting for write.\"; sleep 3; done"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
