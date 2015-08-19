@@ -1,4 +1,19 @@
 ---
+- name: daemon reload
+  command: systemctl daemon-reload
+
+- name: restart etcd
+  service:
+    name: etcd
+    state: restarted
+    enabled: yes
+
+- name: restart flannel
+  service:
+    name: flannel
+    state: restarted
+    enabled: yes
+
 - name: restart kube-apiserver
   service:
     name: kube-apiserver

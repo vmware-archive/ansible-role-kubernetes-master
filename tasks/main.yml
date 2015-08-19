@@ -3,10 +3,29 @@
   command: rpm -q kubernetes
   register: kubernetes_installed
   ignore_errors: yes
+  changed_when: False
+  tags:
+    - packages
+
+- name: test for flannel installed
+  command: rpm -q flannel
+  register: flannel_installed
+  ignore_errors: yes
+  changed_when: False
+  tags:
+    - packages
 
 - name: install kubernetes
   yum:  name={{ kubernetes_package }} state=present
   when: kubernetes_installed.rc == 1
+  tags:
+    - packages
+
+- name: install flannel
+  yum:  name={{ flannel_package }} state=present
+  when: flannel_installed.rc == 1
+  tags:
+    - packages
 
 - name: allow cert creation
   file: group=kube owner=kube path=/var/run/kubernetes/ state=directory recurse=yes
@@ -26,31 +45,26 @@
     - restart kube-controller-manager
     - restart kube-scheduler
 
-- name: test for flanel installed
-  command: rpm -q flannel
-  register: flannel_installed
-  ignore_errors: yes
-
-- name: install flannel
-  yum:  name={{ flannel_package }} state=present
-  when: flannel_installed.rc == 1
-
 - name: Set up services
   template:
-    src: "{{ item }}.j2"
-    dest: /etc/systemd/system/{{ item }}
+    src: "{{ item }}.service.j2"
+    dest: /etc/systemd/system/{{ item }}.service
     owner: root
     group: root
     mode: 0644
+  notify:
+    - daemon reload
+    - restart etcd
+    - restart flannel
   with_items:
-    - flannel.service
-    - etcd.service
+    - flannel
+    - etcd
 
-- name: start services
+- name: initial start services
   service: name={{ item }} enabled=yes state=started
   with_items:
+    - etcd
+    - flannel
     - kube-apiserver
     - kube-controller-manager
     - kube-scheduler
-    - etcd
-    - flannel
