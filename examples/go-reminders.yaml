@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: go-reminders
+  labels: 
+    name: go-reminders
+spec: 
+  containers: 
+    - resources:
+        limits :
+          cpu: 0.5
+      image: tompscanlan/go-reminders
+      name: go-reminders
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "yourpassword"
+        - name: MYSQL_ROOT_USER
+          value: "root"
+        - name: MYSQL_HOST
+          value: "10.254.179.27"
+      command: ["/go-reminders" ]
+      args: [ "-a", "10.254.179.27", "-s", "yourpassword", "-u", "root", "-dbport", "3306","-dbuser","root", "-dbpasswd", "yourpassword"]
+      ports: 
+        - containerPort: 8080
+          name: web
