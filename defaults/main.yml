@@ -13,7 +13,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-# use 512MB, type string, or 0 for unlimited
+# Container memory limit. Use 512MB, type string, or 0 for unlimited
 memory_limit: 0MB
+
+# The name of the kubernetes package to install.
 kubernetes_package: kubernetes
+
+# The name of the flannel package to install.
 flannel_package: flannel
