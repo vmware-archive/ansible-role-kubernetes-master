@@ -1,0 +1,78 @@
+#
+#  Copyright 2015 VMware, Inc.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+---
+- name: Create dashboard
+  template:
+    src: "templates/pods/web_ui_dashboard.yml.j2"
+    dest: "/tmp/web_ui_dashboard.yml"
+    owner: "{{ ansible_ssh_user }}"
+    group: "{{ ansible_ssh_user }}"
+    mode: 0644
+  tags:
+    - kube_pod-web_ui_dashboard
+    
+- name: Provision dashboard pod
+  command: "kubectl create -f /tmp/web_ui_dashboard.yml"
+  tags:
+    - kube_pod-web_ui_dashboard
+    
+- name: Downloading ElasticSearch code
+  git:
+    repo: "https://github.com/pires/{{ item.repo }}"
+    dest: "{{ item.path }}"
+    update: yes
+    force: yes
+  with_items:
+    - { repo: 'kubernetes-elasticsearch-cluster.git', path: '/tmp/kubernetes-elasticsearch-cluster' }
+    - { repo: 'kubernetes-elk-cluster.git', path: '/tmp/kubernetes-elk-cluster' }
+  tags:
+    - kube_pod-elk
+
+- name: Import the ElasticSearch primary services
+  kubernetes:
+    api_endpoint: "{{ master_address }}:8080"
+    insecure: yes
+    file_reference: "{{ item }}"
+    state: present
+  with_items:
+    - "/tmp/kubernetes-elasticsearch-cluster/es-discovery-svc.yaml"
+    - "/tmp/kubernetes-elasticsearch-cluster/es-svc.yaml"
+  tags:
+    - kube_pod-elk
+
+- name: Import ElasticSearch pod
+  command: "kubectl create -f /tmp/kubernetes-elasticsearch-cluster/es-master.yaml"
+  tags:
+    - kube_pod-elk
+
+- name: Import the ElasticSearch client and data storage deployments
+  command: "kubectl create -f {{ item }}"
+  with_items:
+    - "/tmp/kubernetes-elasticsearch-cluster/es-client.yaml"
+    - "/tmp/kubernetes-elasticsearch-cluster/es-data.yaml"
+  tags:
+    - kube_pod-elk
+    
+- name: Create the service account, logstash and kibana services and controllers
+  command: "kubectl create -f {{ item }}"  
+  with_items:
+    - "/tmp/kubernetes-elk-cluster/service-account.yaml"
+    - "/tmp/kubernetes-elk-cluster/logstash-service.yaml"
+    - "/tmp/kubernetes-elk-cluster/logstash-controller.yaml"
+    - "/tmp/kubernetes-elk-cluster/kibana-service.yaml"
+    - "/tmp/kubernetes-elk-cluster/kibana-controller.yaml"
+  tags:
+    - kube_pod-elk

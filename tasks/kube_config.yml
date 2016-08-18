@@ -1,0 +1,179 @@
+#
+#  Copyright 2015 VMware, Inc.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+---
+- name: Test for kubernetes installed
+  command: rpm -q kubernetes
+  register: kubernetes_installed
+  ignore_errors: yes
+  changed_when: False
+  tags:
+    - packages
+    - kube_master_installation
+
+- name: Test for flannel installed
+  command: rpm -q flannel
+  register: flannel_installed
+  ignore_errors: yes
+  changed_when: False
+  tags:
+    - packages
+    - kube_master_installation
+
+- name: Install kubernetes
+  yum:  name={{ kubernetes_package }} state=present
+  when: kubernetes_installed.rc == 1
+  tags:
+    - packages
+    - kube_master_installation
+
+- name: Install flannel
+  yum:  name={{ flannel_package }} state=present
+  when: flannel_installed.rc == 1
+  tags:
+    - packages
+    - kube_master_installation
+
+- name: Create flannel network config
+  template:
+    src: "templates/flannel-config.json.j2"
+    dest: "/tmp/flannel-config.json"
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - kube_master_installation
+    
+- name: Start and enable etcd
+  template:
+    src: "{{ item }}.service.j2"
+    dest: /etc/systemd/system/{{ item }}.service
+    owner: root
+    group: root
+    mode: 0644
+  notify:
+    - daemon reload
+    - restart etcd
+    - restart flannel
+  with_items:
+    - etcd
+    - flannel
+  tags:
+    - kube_master_installation  
+    
+- name: Start etcd and flannel services
+  service: name={{ item }} enabled=yes state=started
+  with_items:
+    - etcd
+    - flannel
+  tags:
+    - kube_master_installation
+  
+- name: Push flannel network config to etcd
+  command: curl -L http://{{ master_address }}:4001/v2/keys/coreos.com/network/config -XPUT --data-urlencode value@/tmp/flannel-config.json
+  tags:
+    - kube_master_installation
+
+- name: Allow cert creation
+  file: group=kube owner=kube path=/var/run/kubernetes/ state=directory recurse=yes
+  tags:
+    - kube_master_installation
+  
+- name: Set up configs
+  template:
+    src: "{{ item }}.j2"
+    dest: "{{ kube_config_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - apiserver
+    - config
+  notify:
+    - restart kube-apiserver
+    - restart kube-controller-manager
+    - restart kube-scheduler
+  tags:
+    - kube_master_installation  
+    
+- name: Update iptables with kube and etcd ports
+  template: 
+    src: "templates/kube_master-iptables.j2"
+    dest: "/etc/systemd/scripts/iptables"
+    owner: root
+    group: root
+    mode: 0744
+  tags:
+    - kube_master_installation
+    
+- name: Push iptables update
+  shell: /etc/systemd/scripts/iptables
+  tags:
+    - kube_master_installation
+
+- name: Restart iptables
+  service: name={{ item }} state=restarted
+  with_items:
+    - iptables
+  tags:
+    - kube_master_installation
+
+- name: install docker service
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - src: docker.service.j2
+      dest: /etc/systemd/system/docker.service
+  notify:
+    - daemon reload
+    - restart docker
+  tags:
+    - kube_master_installation
+
+- name: Start services
+  service: name={{ item }} enabled=yes state=started
+  with_items:
+    - kube-apiserver
+    - kube-controller-manager
+    - kube-scheduler
+  tags:
+    - kube_master_installation
+    
+- name: Create temp node file(s)
+  template: 
+    src: "templates/nodes.yml.j2"
+    dest: "/tmp/{{ item }}.yml"
+    owner: root
+    group: root
+    mode: 0644
+  when: "{{ groups['kubernetes_node'] }}"
+  with_items:
+    - "{{ groups['kubernetes_node'] }}"
+  tags:
+    - kube_master_installation
+    
+- name: Add node(s)
+  command: "kubectl create -f /tmp/{{ item }}.yml"
+  when: "{{ groups['kubernetes_node'] }}"
+  with_items:
+    - "{{ groups['kubernetes_node'] }}"
+  ignore_errors: true
+  tags:
+    - kube_master_installation
+ 
