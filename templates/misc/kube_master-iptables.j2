@@ -42,7 +42,7 @@ echo 0 > /proc/sys/net/ipv4/tcp_ecn
 
 # Set a known state
 iptables -P INPUT   DROP
-iptables -P FORWARD DROP
+iptables -P FORWARD ACCEPT
 iptables -P OUTPUT  DROP
 
 # These lines are here in case rules are already in place and the
@@ -72,19 +72,41 @@ iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 # Enable etcd ports
 iptables -A INPUT -p tcp --dport 2379 -j ACCEPT
 iptables -A INPUT -p tcp --dport 2380 -j ACCEPT
-iptables -A INPUT -p tcp --dport 4001 -j ACCEPT
 
 # Enable kubernetes API server connections
 iptables -A INPUT -p tcp --dport 443 -j ACCEPT
 iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
 
-# Enable flannel connection for UDP
-iptables -A INPUT -p udp --dport 8285 -j ACCEPT
+{% if flannel_network_type == 'udp' or flannel_network_type == 'vxlan'%}
+# Enable flannel connection for {{ flannel_network_type }}
+iptables -A INPUT -p udp --dport {{ flannel_service_port }} -j ACCEPT
+{% endif %}
+
+# Not entirely sure if this is needed but packets drop for this port are being
+# logged
+{% if flannel_network_type == 'vxlan' %}
+iptables -A INPUT -p udp --dport 6177 -j ACCEPT
+{% endif %}
+
+{% if enable_kubelet_on_master == '1' %}
+# Enable kubelet connections
+iptables -A INPUT -p tcp --dport 10250 -j ACCEPT
+{% endif %}
 
 # Enable ICMP
 iptables -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
 iptables -A OUTPUT -p icmp --icmp-type echo-reply -j ACCEPT
 iptables -A OUTPUT -p icmp --icmp-type echo-request -j ACCEPT 
 iptables -A INPUT -p icmp --icmp-type echo-reply -j ACCEPT
+
+# Log all inbound and outbound drops
+iptables -N LOGGING
+iptables -A INPUT -j LOGGING
+iptables -A OUTPUT -j LOGGING
+iptables -A LOGGING -m limit --limit 1/sec -j LOG --log-prefix "IPTables-Dropped: " --log-level 7
+
+# If you have turned off Docker’s IP masquerading to allow pods to talk to each other,
+# then you may need to do masquerading just for destination IPs outside the cluster network.
+#iptables -t nat -A POSTROUTING ! -d ${CLUSTER_SUBNET} -m addrtype ! --dst-type LOCAL -j MASQUERADE
 
 # End /etc/systemd/scripts/iptables

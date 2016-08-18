@@ -23,7 +23,7 @@ Wants=network-online.target
 Type=notify
 EnvironmentFile=/run/flannel/subnet.env
 EnvironmentFile=-/etc/default/docker
-ExecStart=/usr/bin/docker daemon $DOCKER_OPTS --containerd /run/containerd.sock --bip=${FLANNEL_SUBNET} --mtu=${FLANNEL_MTU}
+ExecStart=/usr/bin/docker daemon --containerd /run/containerd.sock --bip=${FLANNEL_SUBNET} --mtu=${FLANNEL_MTU}
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=5

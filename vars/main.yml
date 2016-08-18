@@ -16,3 +16,36 @@
 docker_api_version: 1.18
 elasticsearch_mapped_dir: /var/lib/elasticsearch
 cluster_name: elasticky
+
+# Container memory limit. Use 512MB, type string, or 0 for unlimited
+memory_limit: 0MB
+docker_package: docker
+docker_service_unit: /etc/systemd/system/docker.service
+
+# etcd
+etcd_package: etcd
+etcd_service_unit: /etc/systemd/system/etcd.service
+
+# flannel
+flannel_src_dl_url: https://github.com/coreos/flannel/releases/download/v{{ flannel_src_ver }}/flanneld-amd64
+flannel_pkg: flannel
+flannel_schema_template: templates/misc/flannel-schema.json.j2
+flannel_schema_filepath: /tmp/flannel-schema.json
+flannel_schema_path_in_etcd: /coreos.com/network/config
+flannel_svc_unit: /etc/systemd/system/flannel.service
+
+# Kubernetes
+kube_pkg: kubernetes
+kube_cfg_dir: /etc/kubernetes
+kube_svc_unit: /etc/systemd/system/kubernetes.service
+kube_src_dl_url: https://github.com/kubernetes/kubernetes/releases/download/v{{ kube_src_ver }}/kubernetes.tar.gz
+kube_src_local_parent_dir: /root
+kube_src_local_parent_archive: kubernetes_source-{{ kube_src_ver }}.tar.gz
+kube_src_local_child_dir: "{{ kube_src_local_parent_dir }}/kubernetes/server"
+kube_src_local_child_archive: kubernetes-server-linux-amd64.tar.gz
+kube_src_local_bin_dir: "{{ kube_src_local_child_dir }}/kubernetes/server/bin"
+kube_bin_local_dir: /usr/bin
+kubelet_working_dir: /var/lib/kubelet
+
+# iptables
+iptables_rules_script: /etc/systemd/scripts/iptables

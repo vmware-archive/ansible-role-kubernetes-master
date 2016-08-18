@@ -14,11 +14,12 @@
    limitations under the License.
 #} 
 [Unit]
-Description=etcd
+Description=Flannel network fabric
 
 [Service]
 EnvironmentFile=/etc/environment
-ExecStart=/usr/bin/etcd --advertise-client-urls http://{{ master_address }}:2379,http://{{ master_address }}:4001  --listen-client-urls http://0.0.0.0:2379,http://0.0.0.0:4001  --initial-advertise-peer-urls http://{{ master_address }}:2380  --listen-peer-urls http://0.0.0.0:2380  --initial-cluster-token etcd-cluster-1  -initial-cluster default=http://{{ master_address }}:2380  -initial-cluster-state new
+ExecStart=/usr/bin/flanneld --v=9 --iface={{ hostvars[inventory_hostname]['ansible_eth0']['ipv4']['address'] }} --etcd-endpoints=http://{{ master_address }}:2379 
+ExecStartPost=-/bin/bash -c "until [ -e /run/flannel/subnet.env ]; do echo \"waiting for write.\"; sleep 3; done"
 Restart=on-failure
 RestartSec=5
 

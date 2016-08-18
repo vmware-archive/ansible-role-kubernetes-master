@@ -26,7 +26,7 @@
 #   kube-proxy.service
 
 # Comma separated list of nodes in the etcd cluster
-KUBE_ETCD_SERVERS="--etcd_servers=http://{{ master_address }}:4001"
+KUBE_ETCD_SERVERS="--etcd_servers=http://{{ master_address }}:2379"
 KUBE_MASTER="--master=http://{{ master_address }}:8080"
 
 # logging to stderr means we get it in the systemd journal

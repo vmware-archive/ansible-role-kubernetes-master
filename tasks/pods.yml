@@ -21,13 +21,11 @@
     owner: "{{ ansible_ssh_user }}"
     group: "{{ ansible_ssh_user }}"
     mode: 0644
-  tags:
-    - kube_pod-web_ui_dashboard
-    
+  when: deploy_kube_web_dash_app == '1'
+  
 - name: Provision dashboard pod
   command: "kubectl create -f /tmp/web_ui_dashboard.yml"
-  tags:
-    - kube_pod-web_ui_dashboard
+  when: deploy_kube_web_dash_app == '1'
     
 - name: Downloading ElasticSearch code
   git:
@@ -38,8 +36,7 @@
   with_items:
     - { repo: 'kubernetes-elasticsearch-cluster.git', path: '/tmp/kubernetes-elasticsearch-cluster' }
     - { repo: 'kubernetes-elk-cluster.git', path: '/tmp/kubernetes-elk-cluster' }
-  tags:
-    - kube_pod-elk
+  when: deploy_elk_app == '1'
 
 - name: Import the ElasticSearch primary services
   kubernetes:
@@ -50,21 +47,18 @@
   with_items:
     - "/tmp/kubernetes-elasticsearch-cluster/es-discovery-svc.yaml"
     - "/tmp/kubernetes-elasticsearch-cluster/es-svc.yaml"
-  tags:
-    - kube_pod-elk
+  when: deploy_elk_app == '1'
 
 - name: Import ElasticSearch pod
   command: "kubectl create -f /tmp/kubernetes-elasticsearch-cluster/es-master.yaml"
-  tags:
-    - kube_pod-elk
+  when: deploy_elk_app == '1'
 
 - name: Import the ElasticSearch client and data storage deployments
   command: "kubectl create -f {{ item }}"
   with_items:
     - "/tmp/kubernetes-elasticsearch-cluster/es-client.yaml"
     - "/tmp/kubernetes-elasticsearch-cluster/es-data.yaml"
-  tags:
-    - kube_pod-elk
+  when: deploy_elk_app == '1'
     
 - name: Create the service account, logstash and kibana services and controllers
   command: "kubectl create -f {{ item }}"  
@@ -74,5 +68,4 @@
     - "/tmp/kubernetes-elk-cluster/logstash-controller.yaml"
     - "/tmp/kubernetes-elk-cluster/kibana-service.yaml"
     - "/tmp/kubernetes-elk-cluster/kibana-controller.yaml"
-  tags:
-    - kube_pod-elk
+  when: deploy_elk_app == '1'

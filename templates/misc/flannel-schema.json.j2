@@ -1,0 +1,27 @@
+#jinja2: trim_blocks: True , lstrip_blocks: True
+{
+    "Network": "{{ flannel_network_with_vlsm }}",
+    "SubnetLen": {{ flannel_vlsm_subscope }},
+    "SubnetMin": "{{ flannel_subnet_min }}",
+    "SubnetMax": "{{ flannel_subnet_max }}",
+    "Backend": {
+{% if flannel_network_type == 'udp' %}
+        "Type": "udp",
+        "Port": {{ flannel_service_port }}
+{% elif flannel_network_type == 'vxlan' %}
+        "Type": "vxlan",
+        "Port": {{ flannel_service_port }},
+        "VNI": {{ flannel_vxlan_vni }}
+{% elif flannel_network_type == "host-gw" %}
+        "Type": "host-gw"
+{% elif flannel_network_type == "aws-vpc" %}
+        "Type": "aws-vpc"{% if flannel_awsvpc_routeableid %},
+        "RouteTableID": {{ flannel_awsvpc_routeableid }}
+{% endif %}
+{% elif flannel_network_type == "gce" %}
+        "Type": "gce"
+{% elif flannel_network_type == "alloc" %}
+        "Type": "alloc"
+{% endif %}
+    }
+}

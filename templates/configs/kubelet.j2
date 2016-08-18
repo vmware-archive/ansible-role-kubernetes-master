@@ -29,4 +29,4 @@ KUBELET_HOSTNAME="--hostname_override={{ inventory_hostname }}"
 KUBELET_API_SERVER="--api_servers=http://{{ master_address }}:8080"
 
 # Add your own!
-KUBELET_ARGS=""
+KUBELET_ARGS="--allow-privileged=true"

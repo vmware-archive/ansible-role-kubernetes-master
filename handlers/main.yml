@@ -29,6 +29,12 @@
     state: restarted
     enabled: yes
 
+- name: restart docker
+  service:
+    name: docker
+    state: restarted
+    enabled: yes
+
 - name: restart kube-apiserver
   service:
     name: kube-apiserver
@@ -46,9 +52,15 @@
     name: kube-scheduler
     state: restarted
     enabled: yes
-
-- name: restart docker
+   
+- name: restart kube-proxy
   service:
-    name: docker
+    name: kube-proxy
     state: restarted
     enabled: yes
+
+- name: restart kubelet
+  service:
+   name: kubelet
+   state: restarted
+   enabled: yes
