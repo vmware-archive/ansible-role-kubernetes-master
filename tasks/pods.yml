@@ -13,59 +13,61 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
----
-- name: Create dashboard
-  template:
-    src: "templates/pods/web_ui_dashboard.yml.j2"
-    dest: "/tmp/web_ui_dashboard.yml"
+
+#### KUBERNETES DOCKER-REGISTRY SECRET CREATION START ####
+- name: Create Docker Registry secret
+  command: kubectl create secret docker-registry "{{ kube_docker_registry_secret_name }}" --docker-server="{{ kube_docker_registry_server }}" --docker-username="{{ kube_docker_registry_username }}" --docker-password="{{ kube_docker_registry_pwd }}" --docker-email="{{ kube_docker_registry_email }}"
+  ignore_errors: true
+  tags:
+    - deploy_apps_in_kube
+#### KUBERNETES DOCKER-REGISTRY SECRET CREATION END ####
+
+#### PROVISION APP TO KUBERNETES START ####
+- name: Copy app service files
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
     owner: "{{ ansible_ssh_user }}"
     group: "{{ ansible_ssh_user }}"
     mode: 0644
-  when: deploy_kube_web_dash_app == '1'
+  with_items:
+    - { src: templates/pods/lamp/mysql-service.yml, dest: /root/mysql-service.yml }
+  tags:
+    - deploy_apps_in_kube
+
+- name: Build the controller files from template
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ ansible_ssh_user }}"
+    group: "{{ ansible_ssh_user }}"
+    mode: 0644
+  with_items:
+    - { src: templates/pods/lamp/apache-service.yml.j2, dest: /root/apache-service.yml }
+    - { src: templates/pods/lamp/apache-controller.yml.j2, dest: /root/apache-controller.yml }
+    - { src: templates/pods/lamp/mysql-controller.yml.j2, dest: /root/mysql-controller.yml }
+  tags:
+    - deploy_apps_in_kube
   
-- name: Provision dashboard pod
-  command: "kubectl create -f /tmp/web_ui_dashboard.yml"
-  when: deploy_kube_web_dash_app == '1'
-    
-- name: Downloading ElasticSearch code
-  git:
-    repo: "https://github.com/pires/{{ item.repo }}"
-    dest: "{{ item.path }}"
-    update: yes
-    force: yes
+- name: Provision the app
+  command: kubectl create -f "{{ item }}"
   with_items:
-    - { repo: 'kubernetes-elasticsearch-cluster.git', path: '/tmp/kubernetes-elasticsearch-cluster' }
-    - { repo: 'kubernetes-elk-cluster.git', path: '/tmp/kubernetes-elk-cluster' }
-  when: deploy_elk_app == '1'
+    - /root/mysql-controller.yml
+    - /root/mysql-service.yml
+    - /root/apache-controller.yml
+    - /root/apache-service.yml
+  tags:
+    - deploy_apps_in_kube
+#### PROVISION APP TO KUBERNETES END ####
 
-- name: Import the ElasticSearch primary services
-  kubernetes:
-    api_endpoint: "{{ master_address }}:8080"
-    insecure: yes
-    file_reference: "{{ item }}"
-    state: present
+#### DESTROY APPS IN KUBERNETES START ####
+- name: Provision the app
+  command: kubectl delete -f "{{ item }}"
   with_items:
-    - "/tmp/kubernetes-elasticsearch-cluster/es-discovery-svc.yaml"
-    - "/tmp/kubernetes-elasticsearch-cluster/es-svc.yaml"
-  when: deploy_elk_app == '1'
-
-- name: Import ElasticSearch pod
-  command: "kubectl create -f /tmp/kubernetes-elasticsearch-cluster/es-master.yaml"
-  when: deploy_elk_app == '1'
-
-- name: Import the ElasticSearch client and data storage deployments
-  command: "kubectl create -f {{ item }}"
-  with_items:
-    - "/tmp/kubernetes-elasticsearch-cluster/es-client.yaml"
-    - "/tmp/kubernetes-elasticsearch-cluster/es-data.yaml"
-  when: deploy_elk_app == '1'
-    
-- name: Create the service account, logstash and kibana services and controllers
-  command: "kubectl create -f {{ item }}"  
-  with_items:
-    - "/tmp/kubernetes-elk-cluster/service-account.yaml"
-    - "/tmp/kubernetes-elk-cluster/logstash-service.yaml"
-    - "/tmp/kubernetes-elk-cluster/logstash-controller.yaml"
-    - "/tmp/kubernetes-elk-cluster/kibana-service.yaml"
-    - "/tmp/kubernetes-elk-cluster/kibana-controller.yaml"
-  when: deploy_elk_app == '1'
+    - /root/mysql-controller.yml
+    - /root/mysql-service.yml
+    - /root/apache-controller.yml
+    - /root/apache-service.yml
+  tags:
+    - destroy_apps_in_kube
+#### DESTROY APPS IN KUBERNETES END ####

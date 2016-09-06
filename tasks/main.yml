@@ -1,5 +1,5 @@
 ---
-- include: kube_config.yml
+- include: kube_reset.yml
+- include: kube_master_config.yml
+- include: kube_addons.yml
 - include: pods.yml
-  tags:
-    - deploy_apps_in_kube

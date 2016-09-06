@@ -16,6 +16,7 @@
 docker_api_version: 1.18
 elasticsearch_mapped_dir: /var/lib/elasticsearch
 cluster_name: elasticky
+systemd_script_dir: /etc/systemd/scripts
 
 # Container memory limit. Use 512MB, type string, or 0 for unlimited
 memory_limit: 0MB
@@ -27,7 +28,7 @@ etcd_package: etcd
 etcd_service_unit: /etc/systemd/system/etcd.service
 
 # flannel
-flannel_src_dl_url: https://github.com/coreos/flannel/releases/download/v{{ flannel_src_ver }}/flanneld-amd64
+flannel_src_dl_url: "https://github.com/coreos/flannel/releases/download/v{{ flannel_src_ver }}/flanneld-amd64"
 flannel_pkg: flannel
 flannel_schema_template: templates/misc/flannel-schema.json.j2
 flannel_schema_filepath: /tmp/flannel-schema.json
@@ -38,14 +39,40 @@ flannel_svc_unit: /etc/systemd/system/flannel.service
 kube_pkg: kubernetes
 kube_cfg_dir: /etc/kubernetes
 kube_svc_unit: /etc/systemd/system/kubernetes.service
-kube_src_dl_url: https://github.com/kubernetes/kubernetes/releases/download/v{{ kube_src_ver }}/kubernetes.tar.gz
+kube_src_dl_url: "https://github.com/kubernetes/kubernetes/releases/download/v{{ kube_src_ver }}/kubernetes.tar.gz"
 kube_src_local_parent_dir: /root
-kube_src_local_parent_archive: kubernetes_source-{{ kube_src_ver }}.tar.gz
+kube_src_local_parent_archive: "kubernetes_source-{{ kube_src_ver }}.tar.gz"
 kube_src_local_child_dir: "{{ kube_src_local_parent_dir }}/kubernetes/server"
 kube_src_local_child_archive: kubernetes-server-linux-amd64.tar.gz
 kube_src_local_bin_dir: "{{ kube_src_local_child_dir }}/kubernetes/server/bin"
 kube_bin_local_dir: /usr/bin
 kubelet_working_dir: /var/lib/kubelet
+kube_systemd_script_dir: "{{ systemd_script_dir }}"
+kube_addons_template_dir: templates/pods/addons
+kube_addons_dir: /etc/kubernetes/addons
+kube_addons_token_dir: "{{ kube_cfg_dir }}/tokens"
+kube_addons_files_dir: "../../roles/kubernetes_master/files"
+kubelet_manifests_dir: "{{ kube_cfg_dir }}/manifests"
 
 # iptables
-iptables_rules_script: /etc/systemd/scripts/iptables
+iptables_rules_script: "{{ systemd_script_dir }}/iptables"
+
+# DNS
+kube_dns_replicas: 1
+kube_dns_domain: "{{ kube_internal_dns_domain }}"
+# IP address of the DNS server.
+# Kubernetes will create a pod with several containers, serving as the DNS
+# server and expose it under this IP address. The IP address must be from
+# the range specified as kube_service_addresses. This magic will actually
+# pick the 10th ip address in the kube_service_addresses range and use that.
+kube_service_addresses: "10.254.0.0/16"
+
+metrics_memory_initial: 200
+metrics_memory_per_node: 4
+metrics_memory: "{{ metrics_memory_initial + (metrics_memory_per_node * (groups['kubernetes_node'] | count)) }}Mi"
+
+eventer_memory_initial: 200
+eventer_memory_per_node: 500
+eventer_memory: "{{ eventer_memory_initial + (eventer_memory_per_node * (groups['kubernetes_node'] | count) / 1024) | round | int }}Mi"
+
+grains: ""

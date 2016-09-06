@@ -30,7 +30,7 @@ spec:
             cpu: 100m
         env:
           - name: "ELASTICSEARCH_URL"
-            value: "http://elasticsearch-logging:9200"
+            value: "http://elasticsearch-logging.kube-system.svc.{{ kube_dns_domain }}:9200"
         ports:
         - containerPort: 5601
           name: ui

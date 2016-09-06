@@ -8,7 +8,7 @@ metadata:
     version: v1
     kubernetes.io/cluster-service: "true"
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     k8s-app: elasticsearch-logging
     version: v1
@@ -20,7 +20,7 @@ spec:
         kubernetes.io/cluster-service: "true"
     spec:
       containers:
-      - image: gcr.io/google_containers/elasticsearch:1.8
+      - image: gcr.io/google_containers/elasticsearch:1.7 
         name: elasticsearch-logging
         resources:
           # keep request = limit to keep this container in guaranteed class

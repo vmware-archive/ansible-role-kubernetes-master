@@ -29,4 +29,6 @@ KUBELET_HOSTNAME="--hostname_override={{ inventory_hostname }}"
 KUBELET_API_SERVER="--api_servers=http://{{ master_address }}:8080"
 
 # Add your own!
-KUBELET_ARGS="--allow-privileged=true"
+KUBELET_ARGS="--allow-privileged=true --cluster-dns={{ kube_service_addresses|ipaddr('net')|ipaddr(10)|ipaddr('address') }} --cluster-domain={{ kube_dns_domain }}"
+
+KUBELET_MANIFESTS="--config=/etc/kubernetes/manifests/fluentd.yaml"
