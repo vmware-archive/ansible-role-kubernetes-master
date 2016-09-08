@@ -1,0 +1,467 @@
+#
+#  Copyright 2015 VMware, Inc.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+---
+#### ETCD START ####
+- name: Update iptables with kube and etcd ports
+  template: 
+    src: "templates/misc/kube_master-iptables.j2"
+    dest: "{{ iptables_rules_script }}"
+    owner: root
+    group: root
+    mode: 0744
+  tags:
+    - kube_reset_installation
+    
+- name: Push iptables update
+  shell: "{{ iptables_rules_script }}"
+  tags:
+    - kube_master_installation
+
+- name: Restart iptables
+  service: 
+    name: iptables
+    state: restarted
+  tags:
+    - kube_master_installation
+#### IPTABLES START ####
+
+#### ETCD START ####
+- name: Install etcd
+  yum:  
+    name: "{{ etcd_package }}"
+    state: present
+  tags:
+    - packages
+    - kube_master_installation
+    
+- name: Update etcd service unit
+  template:
+    src: "templates/systemd/etcd.service.j2"
+    dest: "{{ etcd_service_unit }}"
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - kube_master_installation  
+
+- name: Reload etcd's systemd config
+  command: systemctl daemon-reload
+  tags:
+    - kube_reset_installation
+
+- name: Start etcd service
+  service: name=etcd enabled=yes state=restarted
+  tags:
+    - kube_master_installation
+    
+- name: Wait for etcd to start
+  wait_for:
+    host: "{{ master_address }}"
+    port: 2379
+    state: started
+    timeout: 30
+  tags:
+    - kube_master_installation
+
+#### ETCD END ####
+
+#### FLANNEL START ####
+- name: Install flannel
+  yum:  
+    name: "{{ flannel_pkg }}"
+    state: present
+  when: not install_flannel_from_src
+  tags:
+    - packages
+    - kube_master_installation
+    
+- name: Download flannel binary from Github
+  get_url:
+    url: "{{ flannel_src_dl_url }}"
+    dest: /usr/bin/flanneld
+    owner: root
+    group: root
+    mode: 0755    
+  # use_pkg_mgr_for_flannel called out in photon_kube.yml playbook
+  when: install_flannel_from_src
+  tags:
+    - packages
+    - kube_master_installation
+
+- name: Install flannel service unit
+  template:
+    src: "templates/systemd/flannel.service.j2"
+    dest: "{{ flannel_svc_unit }}"
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - kube_master_installation
+    
+- name: Reload flannel's systemd config
+  command: systemctl daemon-reload
+  tags:
+    - kube_master_installation
+    
+# - name: Convert the VXLAN GDP string to true boolean
+#   set_fact:
+#     flannel_vxlan_gbp_boolean: 'true'
+#   when: flannel_vxlan_gbp == "1"
+#   tags:
+#     - kube_master_installation
+#     
+# - name: Convert the VXLAN GDP string to false boolean
+#   set_fact:
+#     flannel_vxlan_gbp_boolean: 'false'
+#   when: flannel_vxlan_gbp == "0"
+#   tags:
+#     - kube_master_installation
+# 
+# - name: What's the value of 'flannel_vxlan_gbp_boolean'?
+#   debug: msg={{ flannel_vxlan_gbp_boolean }}
+#   tags:
+#     - kube_master_installation
+
+- name: Delete any existing flannel schema doc
+  file:
+    path: "{{ flannel_schema_filepath }}"
+    state: absent
+  tags:
+    - kube_master_installation
+
+- name: Create flannel network schema JSON
+  template: 
+    src: "{{ flannel_schema_template }}"
+    dest: "{{ flannel_schema_filepath }}"
+    owner: "{{ ansible_ssh_user }}"
+    group: "{{ ansible_ssh_user }}"
+    mode: 0644
+  tags:
+    - kube_master_installation
+
+- name: Upload flannel network schema to etcd 
+  shell: etcdctl --no-sync --endpoints http://{{ master_address }}:2379 set "{{ flannel_schema_path_in_etcd }}" < "{{ flannel_schema_filepath }}"
+  tags:
+    - kube_master_installation
+      
+- name: Start flannel service
+  service: 
+    name: flannel
+    enabled: yes 
+    state: restarted
+  tags:
+    - kube_master_installation
+#### FLANNEL END ####
+
+#### DOCKER START ####
+- name: Install docker
+  yum:  
+    name: "{{ docker_package }}" 
+    state: present
+  tags:
+    - packages
+    - kube_master_installation
+    
+- name: Install docker service unit
+  template:
+    src: "templates/systemd/docker.service.j2"
+    dest: "{{ docker_service_unit }}"
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - kube_master_installation
+
+- name: Reload docker's systemd config
+  command: systemctl daemon-reload
+  tags:
+    - kube_master_installation
+  
+- name: Start docker service
+  service: name=docker enabled=yes state=restarted
+  tags:
+    - kube_master_installation
+#### DOCKER END ####
+
+#### KUBERNETES MASTER START ####
+- name: Install kubernetes from package manager
+  yum:  
+    name: "{{ kube_pkg }}"
+    state: present
+  when: install_kube_from_src == "0"
+  tags:
+    - packages
+    - kube_master_installation
+
+- name: Check for existing Kubernetes installation archive
+  stat:
+    path: "{{ kube_src_local_parent_dir }}/{{ kube_src_local_parent_archive }}"
+  when: install_kube_from_src == "1"
+  register: kube_existing_src
+  tags:
+    - kube_master_installation
+
+- name: Download the Kubernets binaries
+  get_url:
+    url: "{{ kube_src_dl_url }}"
+    dest: "{{ kube_src_local_parent_dir }}/{{ kube_src_local_parent_archive }}"
+    owner: "{{ ansible_ssh_user }}"
+    group: "{{ ansible_ssh_user }}"
+    mode: 0644
+    tmp_dest: "{{ kube_src_local_parent_dir }}"
+  when: (install_kube_from_src == "1") and (not kube_existing_src.stat.exists)
+  tags:
+    - kube_master_installation
+    
+- name: Unarchive existing kubernetes parent binary
+  unarchive:
+    src: "{{ kube_src_local_parent_dir }}/{{ kube_src_local_parent_archive }}"
+    dest: "{{ kube_src_local_parent_dir }}"
+    owner: "{{ ansible_ssh_user }}"
+    group:  "{{ ansible_ssh_user }}"
+    copy: no
+  when: install_kube_from_src == "1"
+  tags:
+    - kube_master_installation
+
+- name: Unarchive individual kube service binaries
+  unarchive:
+    src: "{{ kube_src_local_child_dir }}/{{ kube_src_local_child_archive }}"
+    dest: "{{ kube_src_local_child_dir }}"
+    copy: no
+  when: install_kube_from_src == "1"
+  tags:
+    - kube_master_installation
+    
+- name: Install kube master binaries
+  copy: 
+    src: "{{ kube_src_local_bin_dir }}/{{ item }}"
+    dest: "{{ kube_bin_local_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: 0755
+    remote_src: True
+  with_items:
+    - kube-apiserver
+    - kube-controller-manager
+    - kube-scheduler
+    - kubectl
+  when: install_kube_from_src == "1"
+  tags:
+    - kube_master_installation
+
+- name: Create kube group
+  group:
+    name: kube
+    state: present
+  when: install_kube_from_src == "1"
+  tags:
+    - kube_master_installation
+
+- name: Create kube user
+  user:
+    name: kube
+    createhome: no
+    group: kube
+    state: present
+  when: install_kube_from_src == "1"
+  tags:
+    - kube_master_installation
+
+- name: Allow kube cert creation
+  file: 
+    path: /var/run/kubernetes/
+    owner: kube
+    group: kube 
+    state: directory
+    recurse: yes
+  tags:
+    - kube_master_installation
+  
+- name: Create kube config directory
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0644
+  when: install_kube_from_src == "1"
+  with_items:
+    - "{{ kube_cfg_dir }}"
+  tags:
+    - kube_master_installation
+    
+- name: Set up kube master configs
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - { src: templates/configs/apiserver.j2, dest: "{{ kube_cfg_dir }}/apiserver" }
+    - { src: templates/configs/config.j2, dest: "{{ kube_cfg_dir }}/config" }
+  tags:
+    - kube_master_installation  
+
+- name: Install the kube master systemd services
+  template:
+    src: "templates/systemd/{{ item.name }}.service.j2"
+    dest: "{{ item.svc }}"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - { name: "kube-apiserver", svc: "/etc/systemd/system/kube-apiserver.service" }
+    - { name: "kube-controller-manager", svc: "/etc/systemd/system/kube-controller-manager.service" }
+    - { name: "kube-scheduler", svc: "/etc/systemd/system/kube-scheduler.service" }
+  tags:
+    - kube_master_installation
+
+- name: Start kube master services
+  service: 
+    name: "{{ item }}"
+    enabled: yes 
+    state: restarted
+  with_items:
+    - kube-apiserver
+    - kube-controller-manager
+    - kube-scheduler
+  tags:
+    - kube_master_installation
+#### KUBERNETES MASTER END ####
+
+#### KUBERNETES MINION ON MASTER START ####
+- name: Install kube minion services
+  copy: 
+    src: "{{ kube_src_local_bin_dir }}/{{ item }}"
+    dest: "{{ kube_bin_local_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: 0755
+    remote_src: True
+  with_items:
+    - kube-proxy
+    - kubelet
+    - kubectl
+  when: (install_kube_from_src == "1") and (enable_kubelet_on_master == "1")
+  tags:
+    - kube_master_installation
+
+- name: Create kubelet directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0644
+  when: enable_kubelet_on_master == "1"
+  with_items:
+    - "{{ kubelet_manifests_dir }}"
+    - /root/.docker
+  tags:
+    - kube_master_installation
+    
+- name: Set up kubelet and kube-proxy configs
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - { src: "templates/configs/kubelet.j2", dest: "{{ kube_cfg_dir }}/kubelet" }
+    - { src: "templates/configs/fluentd.yaml.j2", dest: "{{ kubelet_manifests_dir }}/fluentd.yaml" }
+  when: enable_kubelet_on_master == "1"
+  tags:
+    - kube_master_installation
+
+- name: Install the kube minion systemd services
+  template:
+    src: "templates/systemd/{{ item.name }}.service.j2"
+    dest: "{{ item.svc }}"
+    owner: root
+    group: root
+    mode: 0644
+  when: enable_kubelet_on_master == "1"
+  with_items:
+    - { name: "kube-proxy", svc: "/etc/systemd/system/kube-proxy.service" }
+    - { name: "kubelet", svc: "/etc/systemd/system/kubelet.service" }  
+  tags:
+    - kube_master_installation
+
+- name: Create kubelet working directory
+  file:
+    path: "{{ kubelet_working_dir }}"
+    state: directory
+    mode: 0644
+  when: enable_kubelet_on_master == "1"
+  tags:
+    - kube_master_installation
+
+- name: Create Docker auth file directory
+  file:
+    path: /root/.docker
+    state: directory
+    mode: 0644
+  when: enable_kubelet_on_master == "1"
+  tags:
+    - kube_master_installation
+
+- name: Add Docker hub auth file
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - { src: templates/configs/docker_config.json, dest: /root/.docker/config.json }
+  when: enable_kubelet_on_master == "1"
+  tags:
+    - kube_master_installation
+
+- name: Start kube-proxy and kubelet
+  service: 
+    name: "{{ item }}"
+    enabled: yes 
+    state: restarted
+  when: enable_kubelet_on_master == "1"
+  with_items:
+    - kube-proxy
+    - kubelet
+  tags:
+    - kube_master_installation
+#### KUBERNETES MINION ON MASTER END ####
+
+#### KUBERNETES MINION ADDITION START ####
+# - name: Create minion on master addition file
+#   template: 
+#     src: "templates/misc/nodes.yml.j2"
+#     dest: "/tmp/{{ item }}.yml"
+#     owner: root
+#     group: root
+#     mode: 0644
+#   when: enable_kubelet_on_master == "1"
+#   with_items:
+#     - "{{ groups['kubernetes_master'] }}"
+#   tags:
+#     - kube_master_installation
+# 
+# - name: Add kube node(s)
+#   command: "kubectl create -f /tmp/{{ item }}.yml"
+#   when: enable_kubelet_on_master == "1"
+#   with_items:
+#     - "{{ groups['kubernetes_master'] }}"
+#   tags:
+#     - kube_master_installation
+ #### KUBERNETES MINION ADDITION END ####
