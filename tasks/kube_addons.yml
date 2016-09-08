@@ -1,0 +1,146 @@
+#
+#  Copyright 2015 VMware, Inc.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+---
+- name: Remove existing addons
+  command: kubectl delete -f "{{ item }}"
+  with_items:
+    - "{{ kube_addons_dir }}/cluster-logging/es-controller.yaml"
+    - "{{ kube_addons_dir }}/cluster-logging/es-service.yaml"
+    - "{{ kube_addons_dir }}/cluster-logging/kibana-controller.yaml"
+    - "{{ kube_addons_dir }}/cluster-logging/kibana-service.yaml"
+    - "{{ kube_addons_dir }}/cluster-monitoring/grafana-service.yaml"
+    - "{{ kube_addons_dir }}/cluster-monitoring/heapster-controller.yaml"
+    - "{{ kube_addons_dir }}/cluster-monitoring/heapster-service.yaml"
+    - "{{ kube_addons_dir }}/cluster-monitoring/influxdb-grafana-controller.yaml"
+    - "{{ kube_addons_dir }}/cluster-monitoring/influxdb-service.yaml"
+    - "{{ kube_addons_dir }}/dns/skydns-rc.yaml"
+    - "{{ kube_addons_dir }}/dns/skydns-svc.yaml"
+    - "{{ kube_addons_dir }}/kube-dash/kube-dash-rc.yaml"
+    - "{{ kube_addons_dir }}/kube-dash/kube-dash-svc.yaml"
+    - "{{ kube_addons_dir }}/kube-ui/dashboard-controller.yaml"
+    - "{{ kube_addons_dir }}/kube-ui/dashboard-service.yaml"
+  ignore_errors: true
+  tags:
+    - kube_addons_installation
+
+- name: Remove existing addons directories
+  file: 
+    path: "{{ item }}"
+    state: absent
+  ignore_errors: true
+  with_items:
+    - "{{ kube_addons_dir }}" 
+    - "{{ kube_addons_token_dir }}"
+  tags:
+    - kube_addons_installation
+      
+- name: Create addons directories
+  file: 
+    path: "{{ item }}"
+    state: directory
+  with_items:
+    - "{{ kube_addons_dir }}" 
+    - "{{ kube_addons_token_dir }}"
+    - "{{ kube_addons_dir }}/cluster-logging"
+    - "{{ kube_addons_dir }}/cluster-monitoring"
+    - "{{ kube_addons_dir }}/dns"
+    - "{{ kube_addons_dir }}/kube-dash"
+    - "{{ kube_addons_dir }}/kube-ui"
+  tags:
+    - kube_addons_installation
+
+- name: Create the addons configuration files from templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  with_items:
+    - { src: "{{ kube_addons_template_dir }}/cluster-logging/es-controller.yaml.j2", dest: "{{ kube_addons_dir }}/cluster-logging/es-controller.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/cluster-logging/es-service.yaml.j2", dest: "{{ kube_addons_dir }}/cluster-logging/es-service.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/cluster-logging/kibana-controller.yaml.j2", dest: "{{ kube_addons_dir }}/cluster-logging/kibana-controller.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/cluster-logging/kibana-service.yaml.j2", dest: "{{ kube_addons_dir }}/cluster-logging/kibana-service.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/cluster-monitoring/grafana-service.yaml.j2", dest: "{{ kube_addons_dir }}/cluster-monitoring/grafana-service.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/cluster-monitoring/heapster-controller.yaml.j2", dest: "{{ kube_addons_dir }}/cluster-monitoring/heapster-controller.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/cluster-monitoring/heapster-service.yaml.j2", dest: "{{ kube_addons_dir }}/cluster-monitoring/heapster-service.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/cluster-monitoring/influxdb-grafana-controller.yaml.j2", dest: "{{ kube_addons_dir }}/cluster-monitoring/influxdb-grafana-controller.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/cluster-monitoring/influxdb-service.yaml.j2", dest: "{{ kube_addons_dir }}/cluster-monitoring/influxdb-service.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/dns/skydns-rc.yaml.j2", dest: "{{ kube_addons_dir }}/dns/skydns-rc.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/dns/skydns-svc.yaml.j2", dest: "{{ kube_addons_dir }}/dns/skydns-svc.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/kube-dash/kube-dash-rc.yaml.j2", dest: "{{ kube_addons_dir }}/kube-dash/kube-dash-rc.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/kube-dash/kube-dash-svc.yaml.j2", dest: "{{ kube_addons_dir }}/kube-dash/kube-dash-svc.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/kube-ui/dashboard-controller.yaml.j2", dest: "{{ kube_addons_dir }}/kube-ui/dashboard-controller.yaml", mode: 0644 }
+    - { src: "{{ kube_addons_template_dir }}/kube-ui/dashboard-service.yaml.j2", dest: "{{ kube_addons_dir }}/kube-ui/dashboard-service.yaml", mode: 0644 }
+  tags:
+    - kube_addons_installation
+
+- name: Deploy the DNS addon
+  command: kubectl create -f "{{ item }}"
+  with_items:
+    - "{{ kube_addons_dir }}/dns/skydns-svc.yaml"
+    - "{{ kube_addons_dir }}/dns/skydns-rc.yaml"
+  tags:
+    - kube_addons_installation
+
+- name: Deploy the web dashboard addon
+  command: kubectl create -f "{{ item }}"
+  with_items:
+    - "{{ kube_addons_dir }}/kube-ui/dashboard-controller.yaml"
+    - "{{ kube_addons_dir }}/kube-ui/dashboard-service.yaml"
+  tags:
+    - kube_addons_installation
+
+- name: Deploy the Elasticsearch addon
+  command: kubectl create -f "{{ item }}"
+  with_items:
+    - "{{ kube_addons_dir }}/cluster-logging/es-controller.yaml"
+    - "{{ kube_addons_dir }}/cluster-logging/es-service.yaml"
+  tags:
+    - kube_addons_installation
+    
+- name: Deploy the Kibana addon
+  command: kubectl create -f "{{ item }}"
+  with_items:
+    - "{{ kube_addons_dir }}/cluster-logging/kibana-controller.yaml"
+    - "{{ kube_addons_dir }}/cluster-logging/kibana-service.yaml"
+  tags:
+    - kube_addons_installation
+    
+- name: Deploy the kube-dash supporting services influxdb and grafana
+  command: kubectl create -f "{{ item }}"
+  with_items:
+    - "{{ kube_addons_dir }}/cluster-monitoring/influxdb-grafana-controller.yaml"
+    - "{{ kube_addons_dir }}/cluster-monitoring/influxdb-service.yaml"
+    - "{{ kube_addons_dir }}/cluster-monitoring/grafana-service.yaml"
+  tags:
+    - kube_addons_installation
+
+- name: Deploy the kube-dash addon supporting service heapster
+  command: kubectl create -f "{{ item }}"
+  with_items:
+    - "{{ kube_addons_dir }}/cluster-monitoring/heapster-controller.yaml"
+    - "{{ kube_addons_dir }}/cluster-monitoring/heapster-service.yaml"
+  tags:
+    - kube_addons_installation
+
+- name: Deploy the kube-dash addon
+  command: kubectl create -f "{{ item }}"
+  with_items:
+    - "{{ kube_addons_dir }}/kube-dash/kube-dash-rc.yaml"
+    - "{{ kube_addons_dir }}/kube-dash/kube-dash-svc.yaml"
+  tags:
+    - kube_addons_installation

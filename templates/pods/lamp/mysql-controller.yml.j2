@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: mysqldb
+  labels:
+    name: mysqldb
+spec:
+  replicas: {{ mysql_replicas }}
+  selector:
+    name: mysqldb
+  template:
+    metadata:
+      labels:
+        name: mysqldb
+    spec:
+      containers:
+        - name: mysqldb
+          image: "{{ mysql_image_uri }}"
+          imagePullPolicy: "{{ mysql_image_pull_policy }}"
+          ports:
+            - containerPort: 3306
+              name: mysqldb
+          livenessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+      imagePullSecrets:
+        - name: "{{ kube_docker_registry_secret_name }}"
+      
