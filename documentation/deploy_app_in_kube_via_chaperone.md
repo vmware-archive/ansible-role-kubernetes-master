@@ -66,24 +66,24 @@ Although the Chaperone UI provides the ability to change the number of replicas 
 
 ###Validatation
 
-1. The validity of the Ansible play execution can be verified by reviewing the stdout response displayed in the UI below the task buttons. A successful run should report the following, where _photon-1-master.corp.local_ is the hostname of the Kubernetes master. Note that this result only describes the validity of the Ansible run, not whether the containers have been deployed successfully.
+ 1. The validity of the Ansible play execution can be verified by reviewing the stdout response displayed in the UI below the task buttons. A successful run should report the following, where _photon-1-master.corp.local_ is the hostname of the Kubernetes master. Note that this result only describes the validity of the Ansible run, not whether the containers have been deployed successfully.
 
-```shell
-PLAY RECAP *********************************************************************
-photon-1-master.corp.local : ok=5    changed=4    unreachable=0    failed=0
-```
-2. It may take several of minutes to deploy the containers. The container provisioning process can be monitored from the Kubernetes master by executing the following command at the console:
+ ```shell
+ PLAY RECAP *********************************************************************
+ photon-1-master.corp.local : ok=5    changed=4    unreachable=0    failed=0
+ ```
+ 2. It may take several of minutes to deploy the containers. The container provisioning process can be monitored from the Kubernetes master by executing the following command at the console:
 
-```shell
-kubectl get po --watch
-```
+ ```shell
+ kubectl get po --watch
+ ```
+ 3. Once the containers have finished provisioning the website should be accessible by via the Kubernetes master using the port defined in _Apache Service Configuration_. The kubectl command executed in step two should return a status of _Running_ as show below.
 
-3. Once the containers have finished provisioning the website should be accessible by via the Kubernetes master using the port defined in _Apache Service Configuration_. The kubectl command executed in step two should return a status of _Running_ as show below.
-
-```shell
-kubectl get po --watch
-NAME            READY     STATUS    RESTARTS   AGE
-apache-rx0cu    1/1       Running   0          2d
-mysqldb-kcsfr   1/1       Running   0          2d
-```
-4. If the container status is not _Running_ then troubleshooting is required. The most straightforward method is to run the _kubectl create -f \<manifest file>_ from the Kubernetes master. The location of these files is normally the _/root_ directory. The error message returned will indicate what the next steps should be.
+ ```shell
+ kubectl get po --watch
+ NAME            READY     STATUS    RESTARTS   AGE
+ apache-rx0cu    1/1       Running   0          2d
+ mysqldb-kcsfr   1/1       Running   0          2d
+ ```
+ 
+ 4. If the container status is not _Running_ then troubleshooting is required. The most straightforward method is to run the _kubectl create -f \<manifest file>_ from the Kubernetes master. The location of these files is normally the _/root_ directory. The error message returned will indicate what the next steps should be.
