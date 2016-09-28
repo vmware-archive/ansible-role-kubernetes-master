@@ -2,4 +2,4 @@
 - include: kube_reset.yml
 - include: kube_master_config.yml
 - include: kube_addons.yml
-- include: pods.yml
+- include: apps_on_kube.yml
