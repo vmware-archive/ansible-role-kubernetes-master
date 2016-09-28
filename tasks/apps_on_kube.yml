@@ -18,56 +18,53 @@
 - name: Create Docker Registry secret
   command: kubectl create secret docker-registry "{{ kube_docker_registry_secret_name }}" --docker-server="{{ kube_docker_registry_server }}" --docker-username="{{ kube_docker_registry_username }}" --docker-password="{{ kube_docker_registry_pwd }}" --docker-email="{{ kube_docker_registry_email }}"
   ignore_errors: true
+  when: "{{ kube_docker_registry_secret_name }}"
   tags:
     - deploy_apps_in_kube
 #### KUBERNETES DOCKER-REGISTRY SECRET CREATION END ####
 
 #### PROVISION APP TO KUBERNETES START ####
-- name: Copy app service files
+# TODO: This needs to be updated to support more than just Kubernetes application files.
+#       Ultimately more than just this playbook will use the file input type and we need
+#       to support those also. Copying the entire prepare folder is a stopgap until the
+#       Python logic changes can be made to support placing the Kubernetes app files in
+#       their own location.
+- name: Copy files to Kubernetes master
   copy:
-    src: "{{ item.src }}"
-    dest: "{{ item.dest }}"
-    owner: "{{ ansible_ssh_user }}"
-    group: "{{ ansible_ssh_user }}"
-    mode: 0644
-  with_items:
-    - { src: templates/pods/lamp/mysql-service.yml, dest: /root/mysql-service.yml }
+    src: "/var/lib/chaperone/prepare"
+    dest: "/tmp"
   tags:
     - deploy_apps_in_kube
 
-- name: Build the controller files from template
-  template:
-    src: "{{ item.src }}"
-    dest: "{{ item.dest }}"
-    owner: "{{ ansible_ssh_user }}"
-    group: "{{ ansible_ssh_user }}"
-    mode: 0644
-  with_items:
-    - { src: templates/pods/lamp/apache-service.yml.j2, dest: /root/apache-service.yml }
-    - { src: templates/pods/lamp/apache-controller.yml.j2, dest: /root/apache-controller.yml }
-    - { src: templates/pods/lamp/mysql-controller.yml.j2, dest: /root/mysql-controller.yml }
+- name: Get the list of files
+  command: find /tmp/prepare -type f -printf "%f\n"
+  register: kube_app_files
   tags:
     - deploy_apps_in_kube
-  
-- name: Provision the app
+
+- name: Echo the file list
+  debug:
+    msg: "{{ kube_app_files.stdout_lines }}"
+  tags:
+    - deploy_apps_in_kube
+
+- name: Provision the apps
   command: kubectl create -f "{{ item }}"
+  args:
+    chdir: "/tmp/prepare"
   with_items:
-    - /root/mysql-controller.yml
-    - /root/mysql-service.yml
-    - /root/apache-controller.yml
-    - /root/apache-service.yml
+    - "{{ kube_app_files.stdout_lines }}"
   tags:
     - deploy_apps_in_kube
 #### PROVISION APP TO KUBERNETES END ####
 
 #### DESTROY APPS IN KUBERNETES START ####
-- name: Provision the app
+- name: Destroy the apps
   command: kubectl delete -f "{{ item }}"
+  args:
+    chdir: "/root/prepare"
   with_items:
-    - /root/mysql-controller.yml
-    - /root/mysql-service.yml
-    - /root/apache-controller.yml
-    - /root/apache-service.yml
+    - "{{ kube_app_files.stdout_lines }}"
   tags:
     - destroy_apps_in_kube
 #### DESTROY APPS IN KUBERNETES END ####
